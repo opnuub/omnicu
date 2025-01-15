@@ -251,6 +251,7 @@ pub(crate) enum TimePrecisionSerde {
     SecondF8,
     SecondF9,
     MinuteOptional,
+    FractionalSecondOptional,
 }
 
 impl From<TimePrecision> for TimePrecisionSerde {
@@ -287,6 +288,7 @@ impl From<TimePrecision> for TimePrecisionSerde {
                 TimePrecisionSerde::SecondF9
             }
             TimePrecision::MinuteOptional => TimePrecisionSerde::MinuteOptional,
+            TimePrecision::FractionalSecondOptional => TimePrecisionSerde::FractionalSecondOptional,
         }
     }
 }
@@ -325,6 +327,7 @@ impl From<TimePrecisionSerde> for TimePrecision {
                 TimePrecision::FractionalSecond(FractionalSecondDigits::F9)
             }
             TimePrecisionSerde::MinuteOptional => TimePrecision::MinuteOptional,
+            TimePrecisionSerde::FractionalSecondOptional => TimePrecision::FractionalSecondOptional,
         }
     }
 }

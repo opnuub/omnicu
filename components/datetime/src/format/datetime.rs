@@ -4,7 +4,7 @@
 
 use super::time_zone::{FormatTimeZone, FormatTimeZoneError, Iso8601Format, TimeZoneFormatterUnit};
 use crate::error::{DateTimeWriteError, ErrorField};
-use crate::input::ExtractedInput;
+use crate::input::{ExtractedInput, ExtractedNanosecond};
 use crate::provider::fields::{self, FieldLength, FieldSymbol, Second, Year};
 use crate::provider::pattern::runtime::PatternMetadata;
 use crate::provider::pattern::PatternItem;
@@ -366,7 +366,7 @@ where
             let milliseconds = (((hour.number() as u32 * 60) + minute.number() as u32) * 60
                 + second.number() as u32)
                 * 1000
-                + nanosecond.number() / 1_000_000;
+                + nanosecond.millis();
             try_write_number_without_part(w, fdf, milliseconds.into(), l)?
         }
         (FieldSymbol::DecimalSecond(decimal_second), l) => {
@@ -377,9 +377,7 @@ where
             // Formatting with fractional seconds
             let mut s = SignedFixedDecimal::from(second.number());
             let _infallible = s.concatenate_end(
-                SignedFixedDecimal::from(nanosecond.number())
-                    .absolute
-                    .multiplied_pow10(-9),
+                nanosecond.to_unsigned_fixed_decimal(),
             );
             debug_assert!(_infallible.is_ok());
             let position = -(decimal_second as i16);
@@ -398,7 +396,7 @@ where
                 pattern_metadata.time_granularity().is_top_of_hour(
                     input.minute.unwrap_or_default().number(),
                     input.second.unwrap_or_default().number(),
-                    input.nanosecond.unwrap_or_default().number(),
+                    input.nanosecond.map(ExtractedNanosecond::number).unwrap_or_default(),
                 ),
             ) {
                 Err(e) => {

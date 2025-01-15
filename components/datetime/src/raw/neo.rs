@@ -3,7 +3,7 @@
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
 use crate::fieldsets::enums::{CompositeFieldSet, TimeFieldSet, ZoneFieldSet};
-use crate::input::ExtractedInput;
+use crate::input::{ExtractedInput, ExtractedNanosecond};
 use crate::options::*;
 use crate::pattern::DateTimePattern;
 use crate::provider::fields::{self, Field, FieldLength, FieldSymbol, TimeZone};
@@ -15,6 +15,7 @@ use crate::provider::{neo::*, ErasedPackedPatterns, PackedSkeletonVariant};
 use crate::DateTimeFormatterPreferences;
 use icu_calendar::types::YearAmbiguity;
 use icu_provider::prelude::*;
+use icu_timezone::types::NanoSecond;
 use marker_attrs::GlueType;
 use zerovec::ule::AsULE;
 use zerovec::ZeroSlice;
@@ -94,6 +95,7 @@ pub(crate) enum TimePatternDataBorrowed<'a> {
         runtime::PatternBorrowed<'a>,
         Option<Alignment>,
         Option<fields::Hour>,
+        // If None, hide the fractional second digits.
         Option<FractionalSecondDigits>,
     ),
 }
@@ -263,12 +265,14 @@ impl ExtractedInput {
             TimePrecision::FractionalSecond(f) => (PackedSkeletonVariant::Variant1, Some(f)),
             TimePrecision::MinuteOptional => {
                 let minute = self.minute.unwrap_or_default();
-                if minute.is_zero() {
-                    (PackedSkeletonVariant::Standard, None)
-                } else {
+                if !minute.is_zero() {
                     (PackedSkeletonVariant::Variant0, None)
+                } else {
+                    (PackedSkeletonVariant::Standard, None)
                 }
-            }
+            },
+            TimePrecision::FractionalSecondOptional => 
+                (PackedSkeletonVariant::Variant1, self.nanosecond.and_then(ExtractedNanosecond::digits))
         }
     }
 }
@@ -903,5 +907,62 @@ impl<'a> ItemsAndOptions<'a> {
             }
             pattern_item
         })
+    }
+}
+
+/// Calculates the number of fractional second digits required to render the nanosecond
+/// with no trailing zeros.
+fn fractional_second_digits_from_nanosecond(nanosecond: NanoSecond) -> Option<FractionalSecondDigits> {
+    let nanosecond = nanosecond.number();
+    debug_assert!(nanosecond <= 999_999_999);
+    if nanosecond == 0 {
+        return None;
+    }
+    let remainder = nanosecond % 1_0000_0000;
+    if remainder == 0 {
+        return Some(FractionalSecondDigits::F1);
+    }
+    let (abcd, efgh) = (remainder / 1_0000, remainder % 1_0000);
+    if efgh == 0 {
+        let (ab, cd) = (abcd / 100, abcd % 100);
+        if cd == 0 {
+            if ab % 10 == 0 {
+                Some(FractionalSecondDigits::F2)
+            } else {
+                Some(FractionalSecondDigits::F3)
+            }
+        } else {
+            if cd % 10 == 0 {
+                Some(FractionalSecondDigits::F4)
+            } else {
+                Some(FractionalSecondDigits::F5)
+            }
+        }
+    } else {
+        let (ef, gh) = (efgh / 100, efgh % 100);
+        if gh == 0 {
+            if ef % 10 == 0 {
+                Some(FractionalSecondDigits::F6)
+            } else {
+                Some(FractionalSecondDigits::F7)
+            }
+        } else {
+            if gh % 10 == 0 {
+                Some(FractionalSecondDigits::F8)
+            } else {
+                Some(FractionalSecondDigits::F9)
+            }
+        }
+    }
+}
+
+#[test]
+fn test_fractional_second_digits_from_nanosecond() {
+    use fixed_decimal::UnsignedFixedDecimal;
+    use icu_timezone::types::NanoSecond;
+    for i in (0..999_999_999u32).step_by(250) {
+        let result = fractional_second_digits_from_nanosecond(NanoSecond::try_from(i).unwrap()).map(|fd| fd as i16).unwrap_or(0);
+        let actual_digits = -UnsignedFixedDecimal::from(i).multiplied_pow10(-9).trimmed_end().magnitude_range().start();
+        assert_eq!(result, actual_digits, "{i}");
     }
 }

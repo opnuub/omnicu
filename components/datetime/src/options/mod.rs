@@ -431,6 +431,7 @@ pub enum TimePrecision {
     /// 2. `16:20`
     /// 3. `07:15`
     MinuteOptional,
+    FractionalSecondOptional,
 }
 
 impl IntoOption<TimePrecision> for TimePrecision {
