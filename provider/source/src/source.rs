@@ -4,6 +4,7 @@
 
 use elsa::sync::FrozenMap;
 use icu_provider::prelude::*;
+use litemap::LiteMap;
 use std::any::Any;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -482,5 +483,48 @@ impl TzdbCache {
             })
             .as_ref()
             .map_err(|&e| e)
+    }
+}
+
+#[derive(Debug)]
+pub struct IRGValue {
+    pub value: f32,
+}
+
+#[derive(Debug)]
+pub(crate) struct UnihanCache {
+    pub(crate) root: AbstractFs,
+}
+
+impl UnihanCache {
+    pub(crate) fn irg_sources(&self) -> Result<LiteMap<char, IRGValue>, DataError> {
+        let raw_content = self.root.read_to_string("unihan/Unihan_IRGSources.txt")?;
+        let mut map = LiteMap::new();
+        for line in raw_content.lines() {
+            if line.starts_with('#') || line.trim().is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = line.trim().split('\t').collect();
+            let codepoint = parts[0]
+                .strip_prefix("U+")
+                .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+                .and_then(char::from_u32)
+                .unwrap_or('\u{4E00}');
+            let mut candidate = parts[2].trim();
+            if let Some(first_part) = candidate.split_whitespace().next() {
+                candidate = first_part;
+            }
+            let clean_str = if let Some(idx) = candidate.find('\'') {
+                &candidate[..idx]
+            } else if let Some(idx) = candidate.find('-') {
+                &candidate[..idx]
+            } else {
+                candidate
+            };
+            if let Ok(value) = clean_str.parse::<f32>() {
+                map.insert(codepoint, IRGValue { value });
+            }
+        }
+        Ok(map)
     }
 }
