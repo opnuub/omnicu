@@ -82,6 +82,7 @@ pub struct SourceDataProvider {
     cldr_paths: Option<Arc<CldrCache>>,
     icuexport_paths: Option<Arc<SerdeCache>>,
     segmenter_lstm_paths: Option<Arc<SerdeCache>>,
+    #[allow(dead_code)]
     unihan_paths: Option<Arc<UnihanCache>>,
     tzdb_paths: Option<Arc<TzdbCache>>,
     trie_type: TrieType,
@@ -207,7 +208,7 @@ impl SourceDataProvider {
     pub fn with_unihan(self, root: &Path) -> Result<Self, DataError> {
         Ok(Self {
             unihan_paths: Some(Arc::new(UnihanCache {
-                root: AbstractFs::new(root)? 
+                root: AbstractFs::new(root)?,
             })),
             ..self
         })
@@ -287,8 +288,8 @@ impl SourceDataProvider {
         Self {
             unihan_paths: Some(Arc::new(UnihanCache {
                 root: AbstractFs::new_from_url(format!(
-                "https://www.unicode.org/Public/UCD/{tag}/ucd/Unihan.zip"
-                ))
+                    "https://www.unicode.org/Public/UCD/{tag}/ucd/Unihan.zip"
+                )),
             })),
             ..self
         }
@@ -374,8 +375,11 @@ impl SourceDataProvider {
             .ok_or(Self::MISSING_SEGMENTER_LSTM_ERROR)
     }
 
+    #[allow(dead_code)]
     fn unihan(&self) -> Result<&UnihanCache, DataError> {
-        self.unihan_paths.as_deref().ok_or(Self::MISSING_UNIHAN_ERROR)
+        self.unihan_paths
+            .as_deref()
+            .ok_or(Self::MISSING_UNIHAN_ERROR)
     }
 
     fn tzdb(&self) -> Result<&TzdbCache, DataError> {
@@ -490,21 +494,24 @@ fn test_check_req() {
         .is_err());
 }
 
-#[test]
-fn test_download_and_view_irg() {
-    use std::fs::File;
-    use std::io::Write;
-    let provider = SourceDataProvider::new();
+// uncomment and run for visualisation of LiteMap in the form of radicals.txt in tests/data/unihan
+// #[test]
+// fn test_download_and_view_irg() {
+//     use std::fs::File;
+//     use std::io::Write;
+//     let provider = SourceDataProvider::new();
 
-    let cache = provider.unihan().expect("Unihan cache should be configured");
+//     let cache = provider
+//         .unihan()
+//         .expect("Unihan cache should be configured");
 
-    let file_content = cache.irg_sources().expect("Failed to read IRG sources");
-    let output_path = "irg_verification_output.txt";
-    let mut file = File::create(output_path).expect("Failed to create file");
-    for (char, data) in file_content.iter() {
-        writeln!(file, "U+{:04X}\t{}", *char as u32, data.value).unwrap();
-    }
-}
+//     let file_content = cache.irg_sources().expect("Failed to read IRG sources");
+//     let output_path = "tests/data/unihan/redicals.txt";
+//     let mut file = File::create(output_path).expect("Failed to create file");
+//     for (char, data) in file_content.iter() {
+//         writeln!(file, "U+{:04X}\t{}", *char as u32, data.value).unwrap();
+//     }
+// }
 
 trait IterableDataProviderCached<M: DataMarker>: DataProvider<M> {
     fn iter_ids_cached(&self) -> Result<HashSet<DataIdentifierCow<'static>>, DataError>;

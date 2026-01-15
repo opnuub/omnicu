@@ -207,7 +207,6 @@ fn main() -> eyre::Result<()> {
     std::fs::remove_dir_all(out_root.join("tests/data/unihan"))?;
     extract_zip(
         cached(&format!(
-            // Ensure TESTED_UNIHAN_TAG is defined in SourceDataProvider (as discussed in previous steps)
             "https://www.unicode.org/Public/UCD/{}/ucd/Unihan.zip",
             SourceDataProvider::TESTED_UNIHAN_TAG,
         ))
